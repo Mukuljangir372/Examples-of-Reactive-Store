@@ -1,13 +1,8 @@
 package com.mukul.jan.arc.architecture
 
-import android.app.Activity
 import android.util.Log
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.consume
-import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.*
 import java.util.concurrent.ConcurrentHashMap
 
@@ -27,7 +22,7 @@ interface Middleware<S : State, E : Event> {
 
 // EndConnector called after reducer
 interface EndConnector<S : State, E : Event> {
-    fun invoke(store: Store<S, E>, event: E): S
+    fun invoke(store: Store<S, E>, event: E, state: S): S
 }
 
 class Dispatcher<S : State, E : Event>(
@@ -61,14 +56,15 @@ class Dispatcher<S : State, E : Event>(
             for (single in endConnector) {
                 currentState = single.invoke(
                     store = store,
-                    event = finalEvent
+                    event = finalEvent,
+                    state = currentState
                 )
             }
             currentState
         } else {
             state
         }
-        store.updateState(finalState)
+        store.updateState(finalState, finalEvent)
     }
 }
 
@@ -92,36 +88,77 @@ abstract class Store<S : State, E : Event>(
         endConnector = endConnector
     )
 
-    private val reactiveState = Channel<S>(Channel.CONFLATED)
-    fun receive() = reactiveState.receiveAsFlow()
+    private val dispatchedEventsChannel = Channel<E>(Channel.CONFLATED)
+    fun receiveDispatchedEvents() = dispatchedEventsChannel.receiveAsFlow()
 
-    fun observe(block: (S) -> Unit): Store<S, E> {
+    private fun sendDispatchedEvent(event: E) {
+        runBlocking {
+            dispatchedEventsChannel.send(event)
+        }
+    }
+
+    fun observeDispatchedEvents(block: (E) -> Unit): Store<S, E> {
         scope.launch {
-            receive().collectLatest {
+            receiveDispatchedEvents().collectLatest {
                 block(it)
             }
         }
         return this
     }
 
-    @Volatile
-    private var mutableState: S = initialState
-
-    fun state() = mutableState
-
-    @Synchronized
-    fun updateState(newState: S) {
-        mutableState = newState
-        runBlocking {
-            reactiveState.send(newState)
-        }
-    }
-
     fun dispatch(event: E) {
+        sendDispatchedEvent(event)
         dispatcher.dispatch(
             store = this,
             event = event
         )
+    }
+
+    @Volatile
+    private var mutableState: S = initialState
+    fun state() = mutableState
+
+    @Synchronized
+    fun updateState(newState: S, event: E) {
+        mutableState = newState
+        sendState(newState)
+        sendFinishedEvent(event)
+    }
+
+    private val stateChannel = Channel<S>(Channel.CONFLATED)
+    fun receiveState() = stateChannel.receiveAsFlow()
+
+    private fun sendState(state: S) {
+        runBlocking {
+            stateChannel.send(state)
+        }
+    }
+
+    fun observeState(block: (S) -> Unit): Store<S, E> {
+        scope.launch {
+            receiveState().collectLatest {
+                block(it)
+            }
+        }
+        return this
+    }
+
+    private val finishedEventsChannel = Channel<E>(Channel.CONFLATED)
+    fun receiveFinishedEvents() = finishedEventsChannel.receiveAsFlow()
+
+    private fun sendFinishedEvent(event: E) {
+        runBlocking {
+            finishedEventsChannel.send(event)
+        }
+    }
+
+    fun observeFinishedEvents(block: (E) -> Unit): Store<S, E> {
+        scope.launch {
+            receiveFinishedEvents().collectLatest {
+                block(it)
+            }
+        }
+        return this
     }
 }
 
@@ -212,10 +249,22 @@ fun <T : Store<*, *>> createStore(key: String, default: T): T {
     return provider.create(key, default)
 }
 
-fun <S, E, T : Feature<S, E>> T.consume(block: (S) -> Unit): T {
-    store().observe {
-        block(it)
-    }
+/**
+ * EXTS FOR FEATURES
+ */
+
+fun <S, E, T : Feature<S, E>> T.observeState(block: (S) -> Unit): T {
+    store().observeState(block)
+    return this
+}
+
+fun <S, E, T : Feature<S, E>> T.observeDispatchedEvents(block: (E) -> Unit): T {
+    store().observeDispatchedEvents(block)
+    return this
+}
+
+fun <S, E, T : Feature<S, E>> T.observeFinishedEvents(block: (E) -> Unit): T {
+    store().observeFinishedEvents(block)
     return this
 }
 
@@ -229,8 +278,8 @@ abstract class BaseLogger<S : State, E : Event> {
     abstract val logState: Boolean
 
     fun log(name: String, event: E, state: S) {
-        if (logEvent) Log.d(name, "$prefix $event")
-        if (logState) Log.d(name,"$prefix $state")
+        if (logEvent) Log.d(name, "$prefix ($name) $event")
+        if (logState) Log.d(name, "$prefix ($name) $state")
     }
 }
 
@@ -250,8 +299,8 @@ class LoggerEndConnector<S : State, E : Event> constructor(
     override val logEvent: Boolean = true,
     override val logState: Boolean = true
 ) : EndConnector<S, E>, BaseLogger<S, E>() {
-    override fun invoke(store: Store<S, E>, event: E): S {
-        log(name = this::class.java.simpleName, event = event, state = store.state())
+    override fun invoke(store: Store<S, E>, event: E, state: S): S {
+        log(name = this::class.java.simpleName, event = event, state = state)
         return store.state()
     }
 }

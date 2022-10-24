@@ -1,5 +1,6 @@
 package com.mukul.jan.arc.architecture
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 
@@ -81,7 +82,7 @@ class HomeViewModel() : ViewModel() {
         GetUsersFeature(
             scope = viewModelScope,
             getUsersUsecase = GetUsersUsecase()
-        ).consume {
+        ).observeState {
             if (!it.loading && it.users.isNotEmpty()) {
                 store.dispatch(HomeEvent.InsertUsers(users = it.users))
             }
@@ -92,7 +93,7 @@ class HomeViewModel() : ViewModel() {
         DeleteUserFeature(
             scope = viewModelScope,
             deleteUsersUsecase = DeleteUserUsecase()
-        ).consume {
+        ).observeState {
             if (it.userDeleted) {
                 store.dispatch(HomeEvent.RemoveUser(id = it.deletedUser))
             }
