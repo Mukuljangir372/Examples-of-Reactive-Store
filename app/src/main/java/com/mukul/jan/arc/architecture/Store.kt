@@ -18,12 +18,12 @@ interface Reducer<S : State, E : Event> {
 // Middleware sits between dispatching the event and the moment it goes to reducer
 // It can a logger or analytics middleware
 interface Middleware<S : State, E : Event> {
-    fun invoke(store: Store<S, E>, event: E): E
+    fun invoke(scope: CoroutineScope, store: Store<S, E>, event: E): E
 }
 
 // EndConnector called after reducer
 interface EndConnector<S : State, E : Event> {
-    fun invoke(store: Store<S, E>, event: E, state: S): S
+    fun invoke(scope: CoroutineScope, store: Store<S, E>, event: E, state: S): S
 }
 
 class Dispatcher<S : State, E : Event>(
@@ -38,6 +38,7 @@ class Dispatcher<S : State, E : Event>(
             var currentEvent: E = event
             for (single in middleware) {
                 currentEvent = single.invoke(
+                    scope = scope,
                     store = store,
                     event = currentEvent
                 )
@@ -56,6 +57,7 @@ class Dispatcher<S : State, E : Event>(
             var currentState: S = state
             for (single in endConnector) {
                 currentState = single.invoke(
+                    scope = scope,
                     store = store,
                     event = finalEvent,
                     state = currentState
@@ -302,7 +304,7 @@ class LoggerMiddleware<S : State, E : Event> constructor(
     override val logEvent: Boolean = true,
     override val logState: Boolean = true
 ) : Middleware<S, E>, BaseLogger<S, E>() {
-    override fun invoke(store: Store<S, E>, event: E): E {
+    override fun invoke(scope: CoroutineScope, store: Store<S, E>, event: E): E {
         log(name = this::class.java.simpleName, event = event, state = store.state())
         return event
     }
@@ -313,7 +315,7 @@ class LoggerEndConnector<S : State, E : Event> constructor(
     override val logEvent: Boolean = true,
     override val logState: Boolean = true
 ) : EndConnector<S, E>, BaseLogger<S, E>() {
-    override fun invoke(store: Store<S, E>, event: E, state: S): S {
+    override fun invoke(scope: CoroutineScope, store: Store<S, E>, event: E, state: S): S {
         log(name = this::class.java.simpleName, event = event, state = state)
         return store.state()
     }
