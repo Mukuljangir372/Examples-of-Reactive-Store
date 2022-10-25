@@ -1,15 +1,10 @@
 package com.mukul.jan.arc
 
-import android.util.Log
-import com.mukul.jan.arc.architecture.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import com.mukul.jan.arc.store.example.GetUsersFeature
+import com.mukul.jan.arc.store.example.GetUsersUsecase
+import com.mukul.jan.arc.store.example.User
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.single
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import org.junit.Assert
 import org.junit.Before

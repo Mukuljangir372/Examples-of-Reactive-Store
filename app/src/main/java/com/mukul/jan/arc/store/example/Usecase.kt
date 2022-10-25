@@ -1,8 +1,13 @@
-package com.mukul.jan.arc.architecture
+package com.mukul.jan.arc.store.example
 
 import kotlinx.coroutines.delay
 
 abstract class BaseUsecase
+
+data class User(
+    val id: Int,
+    val name: String,
+)
 
 class GetUsersUsecase: BaseUsecase() {
     suspend operator fun invoke(): List<User> {

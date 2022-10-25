@@ -1,8 +1,8 @@
-package com.mukul.jan.arc.architecture
+package com.mukul.jan.arc.store.example
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mukul.jan.arc.store.*
 
 interface BaseHomeInteractor {
     fun deleteUserClicked()
@@ -81,7 +81,7 @@ class HomeViewModel() : ViewModel() {
         GetUsersFeature(
             scope = viewModelScope,
             getUsersUsecase = GetUsersUsecase()
-        ).observeState(viewModelScope) {
+        ).observeState {
             if (!it.loading && it.users.isNotEmpty()) {
                 store.dispatch(HomeEvent.InsertUsers(users = it.users))
             }
@@ -92,7 +92,7 @@ class HomeViewModel() : ViewModel() {
         DeleteUserFeature(
             scope = viewModelScope,
             deleteUsersUsecase = DeleteUserUsecase()
-        ).observeState(viewModelScope) {
+        ).observeState {
             if (it.userDeleted) {
                 store.dispatch(HomeEvent.RemoveUser(id = it.deletedUser))
             }

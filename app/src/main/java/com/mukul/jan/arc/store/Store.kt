@@ -1,4 +1,4 @@
-package com.mukul.jan.arc.architecture
+package com.mukul.jan.arc.store
 
 import android.util.Log
 import kotlinx.coroutines.*
@@ -6,7 +6,6 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
-import kotlin.reflect.KClass
 
 interface Event
 interface State
@@ -34,12 +33,14 @@ class Dispatcher<S : State, E : Event>(
     private val middleware: List<Middleware<S, E>>,
     private val endConnector: List<EndConnector<S, E>>,
 ) {
+    private val scopeWithException = scope + exceptionHandler
+
     fun dispatch(store: Store<S, E>, event: E) {
         val finalEvent = if (middleware.isNotEmpty()) {
             var currentEvent: E = event
             for (single in middleware) {
                 currentEvent = single.invoke(
-                    scope = scope,
+                    scope = scopeWithException,
                     store = store,
                     event = currentEvent
                 )
@@ -58,7 +59,7 @@ class Dispatcher<S : State, E : Event>(
             var currentState: S = state
             for (single in endConnector) {
                 currentState = single.invoke(
-                    scope = scope,
+                    scope = scopeWithException,
                     store = store,
                     event = finalEvent,
                     state = currentState
@@ -80,6 +81,7 @@ abstract class Store<S : State, E : Event>(
 ) {
     private val coroutineDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
     private val coroutineScope = CoroutineScope(coroutineDispatcher)
+
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
         coroutineScope.cancel()
         throw throwable
@@ -141,6 +143,7 @@ abstract class Store<S : State, E : Event>(
 }
 
 /**
+ * //--------------------------------------------------------------------//
  * Store Provider
  */
 class StoreProvider private constructor() {
@@ -192,16 +195,20 @@ class StoreProvider private constructor() {
 }
 
 /**
+ * //--------------------------------------------------------------------//
  * FEATURE
  */
 
 open class Feature<S : State, E : Event>(
     private val initialState: S,
+    private val coroutineScope: CoroutineScope,
     private val storeKey: String,
     private val reducer: Reducer<S, E>,
     private val middleware: List<Middleware<S, E>> = emptyList(),
     private val endConnector: List<EndConnector<S, E>> = emptyList(),
 ) {
+    fun coroutineScope() = coroutineScope
+
     inner class FeatureStore : Store<S, E>(
         initialState = initialState,
         reducer = reducer,
@@ -218,6 +225,7 @@ open class Feature<S : State, E : Event>(
 }
 
 /**
+ * //--------------------------------------------------------------------//
  * EXTS
  */
 fun <T : Store<*, *>> getStore(key: String, default: T): T {
@@ -239,6 +247,7 @@ fun className(target: Class<*>): String {
 }
 
 /**
+ * //--------------------------------------------------------------------//
  * EXTS FOR STORE
  */
 
@@ -277,11 +286,12 @@ fun <S, E, T : Store<S, E>> T.observeFinishedEvents(
 }
 
 /**
+ * //--------------------------------------------------------------------//
  * EXTS FOR FEATURES
  */
 
 fun <S, E, T : Feature<S, E>> T.observeState(
-    scope: CoroutineScope,
+    scope: CoroutineScope = coroutineScope(),
     block: (S) -> Unit
 ): T {
     store().observeState(scope, block)
@@ -289,7 +299,7 @@ fun <S, E, T : Feature<S, E>> T.observeState(
 }
 
 fun <S, E, T : Feature<S, E>> T.observeDispatchedEvents(
-    scope: CoroutineScope,
+    scope: CoroutineScope = coroutineScope(),
     block: (E) -> Unit
 ): T {
     store().observeDispatchedEvents(scope, block)
@@ -297,7 +307,7 @@ fun <S, E, T : Feature<S, E>> T.observeDispatchedEvents(
 }
 
 fun <S, E, T : Feature<S, E>> T.observeFinishedEvents(
-    scope: CoroutineScope,
+    scope: CoroutineScope = coroutineScope(),
     block: (E) -> Unit
 ): T {
     store().observeFinishedEvents(scope, block)
@@ -305,6 +315,7 @@ fun <S, E, T : Feature<S, E>> T.observeFinishedEvents(
 }
 
 /**
+ * //--------------------------------------------------------------------//
  * Predefined Middlewares and EndConnectors
  */
 
@@ -340,9 +351,6 @@ class LoggerEndConnector<S : State, E : Event> constructor(
         return state
     }
 }
-
-
-
 
 
 
