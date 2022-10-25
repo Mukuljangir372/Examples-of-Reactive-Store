@@ -2,6 +2,7 @@ package com.mukul.jan.arc.architecture
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 class DeleteUserFeature(
@@ -119,7 +120,7 @@ class GetUsersFeature(
         }
     }
 
-    operator fun invoke() = scope.launch(Dispatchers.IO) {
+    operator fun invoke() = scope.launch{
         dispatch(
             FeatureEvent.Loading(
                 loading = true

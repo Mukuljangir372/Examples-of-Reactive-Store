@@ -1,10 +1,12 @@
 package com.mukul.jan.arc.architecture
 
+import kotlinx.coroutines.delay
+
 abstract class BaseUsecase
 
-class HomeRepository()
 class GetUsersUsecase: BaseUsecase() {
-    operator fun invoke(): List<User> {
+    suspend operator fun invoke(): List<User> {
+        delay(1000)
         return listOf(User(id = 1, name = "m"), User(id = 2,"k"))
     }
 }
