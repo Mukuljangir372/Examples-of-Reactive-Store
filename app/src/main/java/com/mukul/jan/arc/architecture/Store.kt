@@ -5,6 +5,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.reflect.KClass
 
 interface Event
 interface State
@@ -219,16 +220,21 @@ class StoreProvider private constructor() {
 
 open class Feature<S : State, E : Event>(
     private val initialState: S,
-    private val reducer: Reducer<S, E>,
     private val scope: CoroutineScope,
+    private val storeKey: String,
+    private val reducer: Reducer<S, E>,
+    private val middleware: List<Middleware<S, E>> = emptyList(),
+    private val endConnector: List<EndConnector<S, E>> = emptyList(),
 ) {
     inner class FeatureStore : Store<S, E>(
         initialState = initialState,
+        scope = scope,
         reducer = reducer,
-        scope = scope
+        middleware = middleware,
+        endConnector = endConnector
     )
 
-    private val store = FeatureStore()
+    private val store = getStore(storeKey,FeatureStore())
     fun store() = store
 
     protected fun dispatch(event: E) {
@@ -247,6 +253,14 @@ fun <T : Store<*, *>> getStore(key: String, default: T): T {
 fun <T : Store<*, *>> createStore(key: String, default: T): T {
     val provider = StoreProvider.getInstance()
     return provider.create(key, default)
+}
+
+fun storeKey(target: Class<*>): String {
+    return target.name + ".store"
+}
+
+fun className(target: Class<*>): String {
+    return target.simpleName
 }
 
 /**

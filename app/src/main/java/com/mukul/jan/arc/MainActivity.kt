@@ -39,11 +39,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             SimpleSurface {
                 Button(onClick = {
-                    interactor.deleteUserClicked()
-                }) {
-                    Text(text = "Delete User")
-                }
-                Button(onClick = {
                     interactor.fetchUsersClicked()
                 }) {
                     Text(text = "Fetch Users")

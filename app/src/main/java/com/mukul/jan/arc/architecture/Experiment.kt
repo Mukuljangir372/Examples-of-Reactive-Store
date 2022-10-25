@@ -26,12 +26,12 @@ class HomeStore : Store<HomeState, HomeEvent>(
     reducer = HomeReducer(),
     middleware = listOf(
         LoggerMiddleware(
-            prefix = "HomeStore"
+            prefix = className(HomeState::class.java)
         )
     ),
     endConnector = listOf(
         LoggerEndConnector(
-            prefix = "HomeStore"
+            prefix = className(HomeState::class.java)
         )
     )
 )
@@ -72,11 +72,10 @@ class HomeReducer : Reducer<HomeState, HomeEvent> {
 
 class HomeViewModel() : ViewModel() {
 
-    companion object {
-        private const val storeKey = "HomeViewModel.store"
-    }
-
-    private val store = getStore(storeKey, HomeStore())
+    private val store = getStore(
+        key = storeKey(HomeStore::class.java),
+        default = HomeStore()
+    )
 
     fun insertUser() {
         GetUsersFeature(

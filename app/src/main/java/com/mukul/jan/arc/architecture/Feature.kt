@@ -10,8 +10,9 @@ class DeleteUserFeature(
     private val deleteUsersUsecase: DeleteUserUsecase,
 ) : Feature<DeleteUserFeature.FeatureState, DeleteUserFeature.FeatureEvent>(
     initialState = FeatureState.idle,
-    reducer = FeatureReducer(),
     scope = scope,
+    storeKey = storeKey(DeleteUserFeature::class.java),
+    reducer = FeatureReducer(),
 ) {
     sealed class FeatureEvent : Event {
         data class DeleteUser(
@@ -74,8 +75,19 @@ class GetUsersFeature(
     private val getUsersUsecase: GetUsersUsecase,
 ) : Feature<GetUsersFeature.FeatureState, GetUsersFeature.FeatureEvent>(
     initialState = FeatureState.idle,
-    reducer = FeatureReducer(),
     scope = scope,
+    storeKey = storeKey(GetUsersFeature::class.java),
+    reducer = FeatureReducer(),
+    middleware = listOf(
+        LoggerMiddleware(
+            prefix = className(GetUsersFeature::class.java)
+        )
+    ),
+    endConnector = listOf(
+        LoggerEndConnector(
+            prefix = className(GetUsersFeature::class.java)
+        )
+    )
 ) {
     sealed class FeatureEvent : Event {
         data class InsertUsers(
@@ -85,6 +97,8 @@ class GetUsersFeature(
         data class Loading(
             val loading: Boolean
         ) : FeatureEvent()
+
+        object OpenAlertDialog : FeatureEvent()
     }
 
     data class FeatureState(
@@ -116,21 +130,15 @@ class GetUsersFeature(
                         loading = event.loading
                     )
                 }
+                else -> store.state()
             }
         }
     }
 
-    operator fun invoke() = scope.launch{
-        dispatch(
-            FeatureEvent.Loading(
-                loading = true
-            )
-        )
+    operator fun invoke() = scope.launch {
+        dispatch(FeatureEvent.Loading(loading = true))
         val users = getUsersUsecase.invoke()
-        dispatch(
-            FeatureEvent.InsertUsers(
-                users = users,
-            )
-        )
+        dispatch(FeatureEvent.InsertUsers(users = users))
+        dispatch(FeatureEvent.OpenAlertDialog)
     }
 }
