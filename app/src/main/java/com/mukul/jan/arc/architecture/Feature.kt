@@ -10,7 +10,6 @@ class DeleteUserFeature(
     private val deleteUsersUsecase: DeleteUserUsecase,
 ) : Feature<DeleteUserFeature.FeatureState, DeleteUserFeature.FeatureEvent>(
     initialState = FeatureState.idle,
-    scope = scope,
     storeKey = storeKey(DeleteUserFeature::class.java),
     reducer = FeatureReducer(),
 ) {
@@ -75,7 +74,6 @@ class GetUsersFeature(
     private val getUsersUsecase: GetUsersUsecase,
 ) : Feature<GetUsersFeature.FeatureState, GetUsersFeature.FeatureEvent>(
     initialState = FeatureState.idle,
-    scope = scope,
     storeKey = storeKey(GetUsersFeature::class.java),
     reducer = FeatureReducer(),
     middleware = listOf(

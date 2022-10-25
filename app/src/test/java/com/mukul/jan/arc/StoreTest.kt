@@ -1,5 +1,6 @@
 package com.mukul.jan.arc
 
+import android.util.Log
 import com.mukul.jan.arc.architecture.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +36,8 @@ class StoreTest {
             scope = this,
             getUsersUsecase = getUserUsecase
         )
+
+//        every { Log.e(any(), any()) } returns 0
 
         val mocked = listOf(User(id = 1,name = "m"))
         whenever(getUserUsecase.invoke()).thenReturn(mocked)

@@ -44,6 +44,9 @@ android {
             excludes += '/META-INF/{AL2.0,LGPL2.1}'
         }
     }
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -72,4 +75,8 @@ dependencies {
     //MOCKINTO
     testImplementation 'org.mockito.kotlin:mockito-kotlin:3.2.0'
     testImplementation 'org.mockito:mockito-inline:2.13.0'
+
+    //MOCKK
+    testImplementation "io.mockk:mockk-android:1.13.2"
+    testImplementation "io.mockk:mockk-agent:1.13.2"
 }

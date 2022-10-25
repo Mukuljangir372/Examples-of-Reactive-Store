@@ -51,7 +51,8 @@ class AppReducer: Reducer<AppState, AppEvent> {
 
 open class ExampleStore: Store<AppState, AppEvent>(
     initialState = AppState.EMPTY,
-    reducer = AppReducer()
+    reducer = AppReducer(),
+    endConnector = listOf(LoggerEndConnector(prefix = ""))
 )
 
 class ExampleViewModel(): ViewModel() {

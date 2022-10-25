@@ -5,6 +5,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 import kotlin.reflect.KClass
 
 interface Event
@@ -73,18 +74,19 @@ class Dispatcher<S : State, E : Event>(
 
 abstract class Store<S : State, E : Event>(
     private val initialState: S,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO),
     private val reducer: Reducer<S, E>,
     private val middleware: List<Middleware<S, E>> = emptyList(),
     private val endConnector: List<EndConnector<S, E>> = emptyList()
 ) {
+    private val coroutineDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+    private val coroutineScope = CoroutineScope(coroutineDispatcher)
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
-        scope.cancel()
+        coroutineScope.cancel()
         throw throwable
     }
 
     private val dispatcher = Dispatcher(
-        scope = scope,
+        scope = coroutineScope,
         exceptionHandler = exceptionHandler,
         reducer = reducer,
         middleware = middleware,
@@ -100,19 +102,10 @@ abstract class Store<S : State, E : Event>(
         }
     }
 
-    fun observeDispatchedEvents(block: (E) -> Unit): Store<S, E> {
-        scope.launch {
-            receiveDispatchedEvents().collectLatest {
-                block(it)
-            }
-        }
-        return this
-    }
-
-    fun dispatch(event: E) {
+    fun dispatch(event: E) = coroutineScope.launch(exceptionHandler) {
         sendDispatchedEvent(event)
         dispatcher.dispatch(
-            store = this,
+            store = this@Store,
             event = event
         )
     }
@@ -137,15 +130,6 @@ abstract class Store<S : State, E : Event>(
         }
     }
 
-    fun observeState(block: (S) -> Unit): Store<S, E> {
-        scope.launch {
-            receiveState().collectLatest {
-                block(it)
-            }
-        }
-        return this
-    }
-
     private val finishedEventsChannel = Channel<E>(Channel.CONFLATED)
     fun receiveFinishedEvents() = finishedEventsChannel.receiveAsFlow()
 
@@ -153,15 +137,6 @@ abstract class Store<S : State, E : Event>(
         runBlocking {
             finishedEventsChannel.send(event)
         }
-    }
-
-    fun observeFinishedEvents(block: (E) -> Unit): Store<S, E> {
-        scope.launch {
-            receiveFinishedEvents().collectLatest {
-                block(it)
-            }
-        }
-        return this
     }
 }
 
@@ -222,7 +197,6 @@ class StoreProvider private constructor() {
 
 open class Feature<S : State, E : Event>(
     private val initialState: S,
-    private val scope: CoroutineScope,
     private val storeKey: String,
     private val reducer: Reducer<S, E>,
     private val middleware: List<Middleware<S, E>> = emptyList(),
@@ -230,13 +204,12 @@ open class Feature<S : State, E : Event>(
 ) {
     inner class FeatureStore : Store<S, E>(
         initialState = initialState,
-        scope = scope,
         reducer = reducer,
         middleware = middleware,
         endConnector = endConnector
     )
 
-    private val store = getStore(storeKey,FeatureStore())
+    private val store = getStore(storeKey, FeatureStore())
     fun store() = store
 
     protected fun dispatch(event: E) {
@@ -266,21 +239,68 @@ fun className(target: Class<*>): String {
 }
 
 /**
+ * EXTS FOR STORE
+ */
+
+fun <S, E, T : Store<S, E>> T.observeState(
+    scope: CoroutineScope, block: (S) -> Unit
+): T {
+    scope.launch {
+        this@observeState.receiveState().collectLatest {
+            block(it)
+        }
+    }
+    return this
+}
+
+fun <S, E, T : Store<S, E>> T.observeDispatchedEvents(
+    scope: CoroutineScope,
+    block: (E) -> Unit
+): T {
+    scope.launch {
+        this@observeDispatchedEvents.receiveDispatchedEvents().collectLatest {
+            block(it)
+        }
+    }
+    return this
+}
+
+fun <S, E, T : Store<S, E>> T.observeFinishedEvents(
+    scope: CoroutineScope, block: (E) -> Unit
+): T {
+    scope.launch {
+        this@observeFinishedEvents.receiveFinishedEvents().collectLatest {
+            block(it)
+        }
+    }
+    return this
+}
+
+/**
  * EXTS FOR FEATURES
  */
 
-fun <S, E, T : Feature<S, E>> T.observeState(block: (S) -> Unit): T {
-    store().observeState(block)
+fun <S, E, T : Feature<S, E>> T.observeState(
+    scope: CoroutineScope,
+    block: (S) -> Unit
+): T {
+    store().observeState(scope, block)
     return this
 }
 
-fun <S, E, T : Feature<S, E>> T.observeDispatchedEvents(block: (E) -> Unit): T {
-    store().observeDispatchedEvents(block)
+fun <S, E, T : Feature<S, E>> T.observeDispatchedEvents(
+    scope: CoroutineScope,
+    block: (E) -> Unit
+): T {
+    store().observeDispatchedEvents(scope, block)
     return this
 }
 
-fun <S, E, T : Feature<S, E>> T.observeFinishedEvents(block: (E) -> Unit): T {
-    store().observeFinishedEvents(block)
+fun <S, E, T : Feature<S, E>> T.observeFinishedEvents(
+    scope: CoroutineScope,
+    block: (E) -> Unit
+): T {
+    store().observeFinishedEvents(scope, block)
     return this
 }
 
@@ -317,7 +337,7 @@ class LoggerEndConnector<S : State, E : Event> constructor(
 ) : EndConnector<S, E>, BaseLogger<S, E>() {
     override fun invoke(scope: CoroutineScope, store: Store<S, E>, event: E, state: S): S {
         log(name = this::class.java.simpleName, event = event, state = state)
-        return store.state()
+        return state
     }
 }
 
