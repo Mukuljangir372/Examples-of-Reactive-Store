@@ -1,7 +1,7 @@
 package com.mukul.jan.arc
 
 import com.mukul.jan.arc.store.StoreProvider
-import com.mukul.jan.arc.store.store_example.HomeStore
+import com.mukul.jan.arc.store.example.HomeStore
 import org.junit.Before
 import org.junit.Test
 import org.mockito.kotlin.mock

@@ -15,10 +15,10 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.mukul.jan.arc.store.consumeState
-import com.mukul.jan.arc.store.store_example.HomeEvent
-import com.mukul.jan.arc.store.store_example.HomeInteractor
-import com.mukul.jan.arc.store.store_example.HomeStore
-import com.mukul.jan.arc.store.store_example.HomeViewModel
+import com.mukul.jan.arc.store.example.HomeEvent
+import com.mukul.jan.arc.store.example.HomeInteractor
+import com.mukul.jan.arc.store.example.HomeStore
+import com.mukul.jan.arc.store.example.HomeViewModel
 import com.mukul.jan.arc.ui.theme.ArcTheme
 
 class MainActivity : ComponentActivity() {

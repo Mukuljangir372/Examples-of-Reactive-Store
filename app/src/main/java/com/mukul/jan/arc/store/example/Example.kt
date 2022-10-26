@@ -1,4 +1,4 @@
-package com.mukul.jan.arc.store.store_example
+package com.mukul.jan.arc.store.example
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

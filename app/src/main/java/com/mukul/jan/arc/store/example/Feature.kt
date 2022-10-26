@@ -1,6 +1,7 @@
-package com.mukul.jan.arc.store.store_example
+package com.mukul.jan.arc.store.example
 
 import com.mukul.jan.arc.store.*
+import com.mukul.jan.arc.store.feature.Feature
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 

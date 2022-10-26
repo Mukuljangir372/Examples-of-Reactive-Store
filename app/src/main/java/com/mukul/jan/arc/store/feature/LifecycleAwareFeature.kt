@@ -1,4 +1,4 @@
-package com.mukul.jan.arc.store
+package com.mukul.jan.arc.store.feature
 
 import android.view.View
 import androidx.lifecycle.DefaultLifecycleObserver
