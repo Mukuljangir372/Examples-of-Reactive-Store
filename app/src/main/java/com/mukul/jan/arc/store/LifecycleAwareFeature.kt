@@ -22,8 +22,8 @@ internal interface LifecycleAwareFeature : DefaultLifecycleObserver {
 internal class ViewBinding<T : LifecycleAwareFeature>(
     private val wrapper: ViewBoundFeatureWrapper<T>
 ) : View.OnAttachStateChangeListener {
-    override fun onViewAttachedToWindow(p0: View?) {}
-    override fun onViewDetachedFromWindow(p0: View?) {
+    override fun onViewAttachedToWindow(p0: View) {}
+    override fun onViewDetachedFromWindow(p0: View) {
         wrapper.stop()
     }
 }
@@ -123,7 +123,6 @@ internal class ViewBoundFeatureWrapper<T : LifecycleAwareFeature>() {
     }
 
 }
-
 
 
 

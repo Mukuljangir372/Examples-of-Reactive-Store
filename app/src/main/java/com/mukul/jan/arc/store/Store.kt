@@ -1,11 +1,15 @@
 package com.mukul.jan.arc.store
 
-import android.app.Fragment
 import android.util.Log
+import androidx.activity.ComponentActivity
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.coroutineScope
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.channels.consumeEach
+import java.lang.ref.WeakReference
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
@@ -89,6 +93,26 @@ abstract class Store<S : State, E : Event>(
         throw throwable
     }
 
+    private val stateSubs =
+        Collections.newSetFromMap(ConcurrentHashMap<Subscription<S, E>, Boolean>())
+    private val dispatchedEventSubs =
+        Collections.newSetFromMap(ConcurrentHashMap<Subscription<S, E>, Boolean>())
+    private val finishedEventSubs =
+        Collections.newSetFromMap(ConcurrentHashMap<Subscription<S, E>, Boolean>())
+
+    private fun getSubscriptions(type: SubscriptionType): MutableSet<Subscription<S, E>> {
+        return when (type) {
+            is SubscriptionType.State -> stateSubs
+            is SubscriptionType.DispatchedEvents -> dispatchedEventSubs
+            is SubscriptionType.FinishedEvents -> finishedEventSubs
+        }
+    }
+
+    private fun removeSubscription(type: SubscriptionType, sub: Subscription<S, E>) {
+        val subs = getSubscriptions(type)
+        subs.remove(sub)
+    }
+
     private val dispatcher = Dispatcher(
         scope = coroutineScope,
         exceptionHandler = exceptionHandler,
@@ -97,21 +121,20 @@ abstract class Store<S : State, E : Event>(
         endConnector = endConnector
     )
 
-    private val dispatchedEventsChannel = Channel<E>(Channel.CONFLATED)
-    fun receiveDispatchedEvents() = dispatchedEventsChannel.receiveAsFlow()
-
-    private fun sendDispatchedEvent(event: E) {
-        runBlocking {
-            dispatchedEventsChannel.send(event)
+    fun dispatch(event: E) = coroutineScope.launch(exceptionHandler) {
+        synchronized(this@Store) {
+            sendDispatchedEvent(event)
+            dispatcher.dispatch(
+                store = this@Store,
+                event = event
+            )
         }
     }
 
-    fun dispatch(event: E) = coroutineScope.launch(exceptionHandler) {
-        sendDispatchedEvent(event)
-        dispatcher.dispatch(
-            store = this@Store,
-            event = event
-        )
+    private fun sendDispatchedEvent(event: E) {
+        dispatchedEventSubs.forEach { sub ->
+            sub.dispatch(state(), event)
+        }
     }
 
     @Volatile
@@ -121,26 +144,77 @@ abstract class Store<S : State, E : Event>(
     @Synchronized
     fun updateState(newState: S, event: E) {
         mutableState = newState
-        sendState(newState)
+        sendState(newState, event)
         sendFinishedEvent(event)
     }
 
-    private val stateChannel = Channel<S>(Channel.CONFLATED)
-    fun receiveState() = stateChannel.receiveAsFlow()
-
-    private fun sendState(state: S) {
-        runBlocking {
-            stateChannel.send(state)
+    private fun sendState(state: S, event: E) {
+        stateSubs.forEach { sub ->
+            sub.dispatch(state, event)
         }
     }
 
-    private val finishedEventsChannel = Channel<E>(Channel.CONFLATED)
-    fun receiveFinishedEvents() = finishedEventsChannel.receiveAsFlow()
-
     private fun sendFinishedEvent(event: E) {
-        runBlocking {
-            finishedEventsChannel.send(event)
+        finishedEventSubs.forEach { sub ->
+            sub.dispatch(state(), event)
         }
+    }
+
+    fun observe(
+        type: SubscriptionType,
+        observer: Observer<S, E>
+    ): Subscription<S, E> {
+        val subs = getSubscriptions(type)
+        val sub = Subscription(
+            type = type,
+            observer = observer,
+            store = this
+        )
+        subs.add(sub)
+        return sub
+    }
+
+    sealed class SubscriptionType {
+        object State : SubscriptionType()
+        object DispatchedEvents : SubscriptionType()
+        object FinishedEvents : SubscriptionType()
+    }
+
+    class Subscription<S : State, E : Event> internal constructor(
+        private val type: SubscriptionType,
+        private val observer: Observer<S, E>,
+        store: Store<S, E>,
+    ) {
+        private val storeRef = WeakReference(store)
+        private var active = true
+
+        @Synchronized
+        fun pause() {
+            active = false
+        }
+
+        @Synchronized
+        fun resume() {
+            active = true
+        }
+
+        @Synchronized
+        internal fun dispatch(state: S, event: E) {
+            if (active) {
+                observer.onInvoke(state, event)
+            }
+        }
+
+        @Synchronized
+        fun unsubscribe() {
+            active = false
+            storeRef.get()?.removeSubscription(type, this)
+            storeRef.clear()
+        }
+    }
+
+    interface Observer<S : State, E : Event> {
+        fun onInvoke(state: S, event: E)
     }
 }
 
@@ -241,42 +315,120 @@ fun className(target: Class<*>): String {
  * EXTS FOR STORE
  */
 
-fun <S, E, T : Store<S, E>> T.consumeState(
-    scope: CoroutineScope, block: (S) -> Unit
-): T {
+fun <S : State, E : Event> Store<S, E>.observe(
+    type: Store.SubscriptionType,
+    block: (state: S, event: E) -> Unit,
+): Store<S, E> {
+    val store = this
+    store.observe(
+        type = type,
+        observer = object : Store.Observer<S, E> {
+            override fun onInvoke(state: S, event: E) {
+                block(state, event)
+            }
+        }
+    )
+    return store
+}
+
+fun <S : State, E : Event> Store<S, E>.stateChannel(
+    type: Store.SubscriptionType
+): Channel<S> {
+    val store = this
+    val channel = Channel<S>(Channel.CONFLATED)
+    store.observe(type = type) { state, _ ->
+        runBlocking {
+            try {
+                channel.send(state)
+            } catch (_: CancellationException) {
+
+            }
+        }
+    }
+    return channel
+}
+
+fun <S : State, E : Event> Store<S, E>.eventChannel(
+    type: Store.SubscriptionType
+): Channel<E> {
+    val store = this
+    val channel = Channel<E>(Channel.CONFLATED)
+    store.observe(type = type) { _, event ->
+        runBlocking {
+            try {
+                channel.send(event)
+            } catch (_: CancellationException) {
+
+            }
+        }
+    }
+    return channel
+}
+
+fun <S : State, E : Event> Store<S, E>.consumeState(
+    scope: CoroutineScope,
+    block: (S) -> Unit
+): Store<S, E> {
+    val store = this
+    val channel = store.stateChannel(type = Store.SubscriptionType.State)
     scope.launch {
-        this@consumeState.receiveState().collectLatest {
+        channel.consumeEach {
             block(it)
         }
     }
     return this
 }
 
-fun <S, E, T : Store<S, E>> T.consumeDispatchedEvents(
+fun <S : State, E : Event> Store<S, E>.consumeDispatchedEvents(
     scope: CoroutineScope,
     block: (E) -> Unit
-): T {
+): Store<S, E> {
+    val store = this
+    val channel = store.eventChannel(type = Store.SubscriptionType.DispatchedEvents)
     scope.launch {
-        this@consumeDispatchedEvents.receiveDispatchedEvents().collectLatest {
+        channel.consumeEach {
             block(it)
         }
     }
     return this
 }
 
-fun <S, E, T : Store<S, E>> T.consumeFinishedEvents(
-    scope: CoroutineScope, block: (E) -> Unit
-): T {
+fun <S : State, E : Event> Store<S, E>.consumeFinishedEvents(
+    scope: CoroutineScope,
+    block: (E) -> Unit
+): Store<S, E> {
+    val store = this
+    val channel = store.eventChannel(type = Store.SubscriptionType.FinishedEvents)
     scope.launch {
-        this@consumeFinishedEvents.receiveFinishedEvents().collectLatest {
+        channel.consumeEach {
             block(it)
         }
     }
     return this
 }
 
-fun <S, E, T : Store<S, E>> Fragment.consumeState() {
+fun <S : State, E : Event> Fragment.consumeState(store: Store<S, E>, block: (S) -> Unit) {
+    val fragment = this
+    val scope = lifecycle.coroutineScope
+    if (fragment.view != null && fragment.activity != null) {
+        store.consumeState(scope = scope) { latestState ->
+            if (fragment.view != null && fragment.activity != null) {
+                block(latestState)
+            }
+        }
+    }
+}
 
+fun <S : State, E : Event> ComponentActivity.consumeState(store: Store<S, E>, block: (S) -> Unit) {
+    val activity = this
+    val scope = lifecycle.coroutineScope
+    if (activity.lifecycle.currentState != Lifecycle.State.DESTROYED) {
+        store.consumeState(scope = scope) { latestState ->
+            if (activity.lifecycle.currentState != Lifecycle.State.DESTROYED) {
+                block(latestState)
+            }
+        }
+    }
 }
 
 /**
@@ -284,7 +436,7 @@ fun <S, E, T : Store<S, E>> Fragment.consumeState() {
  * EXTS FOR FEATURES
  */
 
-fun <S, E, T : Feature<S, E>> T.consumeState(
+fun <S : State, E : Event, T : Feature<S, E>> T.consumeState(
     scope: CoroutineScope = coroutineScope(),
     block: (S) -> Unit
 ): T {
@@ -292,7 +444,7 @@ fun <S, E, T : Feature<S, E>> T.consumeState(
     return this
 }
 
-fun <S, E, T : Feature<S, E>> T.consumeDispatchedEvents(
+fun <S : State, E : Event, T : Feature<S, E>> T.consumeDispatchedEvents(
     scope: CoroutineScope = coroutineScope(),
     block: (E) -> Unit
 ): T {
@@ -300,7 +452,7 @@ fun <S, E, T : Feature<S, E>> T.consumeDispatchedEvents(
     return this
 }
 
-fun <S, E, T : Feature<S, E>> T.consumeFinishedEvents(
+fun <S : State, E : Event, T : Feature<S, E>> T.consumeFinishedEvents(
     scope: CoroutineScope = coroutineScope(),
     block: (E) -> Unit
 ): T {
