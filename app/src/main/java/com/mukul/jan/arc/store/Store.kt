@@ -1,5 +1,6 @@
 package com.mukul.jan.arc.store
 
+import android.app.Fragment
 import android.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -240,38 +241,42 @@ fun className(target: Class<*>): String {
  * EXTS FOR STORE
  */
 
-fun <S, E, T : Store<S, E>> T.observeState(
+fun <S, E, T : Store<S, E>> T.consumeState(
     scope: CoroutineScope, block: (S) -> Unit
 ): T {
     scope.launch {
-        this@observeState.receiveState().collectLatest {
+        this@consumeState.receiveState().collectLatest {
             block(it)
         }
     }
     return this
 }
 
-fun <S, E, T : Store<S, E>> T.observeDispatchedEvents(
+fun <S, E, T : Store<S, E>> T.consumeDispatchedEvents(
     scope: CoroutineScope,
     block: (E) -> Unit
 ): T {
     scope.launch {
-        this@observeDispatchedEvents.receiveDispatchedEvents().collectLatest {
+        this@consumeDispatchedEvents.receiveDispatchedEvents().collectLatest {
             block(it)
         }
     }
     return this
 }
 
-fun <S, E, T : Store<S, E>> T.observeFinishedEvents(
+fun <S, E, T : Store<S, E>> T.consumeFinishedEvents(
     scope: CoroutineScope, block: (E) -> Unit
 ): T {
     scope.launch {
-        this@observeFinishedEvents.receiveFinishedEvents().collectLatest {
+        this@consumeFinishedEvents.receiveFinishedEvents().collectLatest {
             block(it)
         }
     }
     return this
+}
+
+fun <S, E, T : Store<S, E>> Fragment.consumeState() {
+
 }
 
 /**
@@ -279,27 +284,27 @@ fun <S, E, T : Store<S, E>> T.observeFinishedEvents(
  * EXTS FOR FEATURES
  */
 
-fun <S, E, T : Feature<S, E>> T.observeState(
+fun <S, E, T : Feature<S, E>> T.consumeState(
     scope: CoroutineScope = coroutineScope(),
     block: (S) -> Unit
 ): T {
-    store().observeState(scope, block)
+    store().consumeState(scope, block)
     return this
 }
 
-fun <S, E, T : Feature<S, E>> T.observeDispatchedEvents(
+fun <S, E, T : Feature<S, E>> T.consumeDispatchedEvents(
     scope: CoroutineScope = coroutineScope(),
     block: (E) -> Unit
 ): T {
-    store().observeDispatchedEvents(scope, block)
+    store().consumeDispatchedEvents(scope, block)
     return this
 }
 
-fun <S, E, T : Feature<S, E>> T.observeFinishedEvents(
+fun <S, E, T : Feature<S, E>> T.consumeFinishedEvents(
     scope: CoroutineScope = coroutineScope(),
     block: (E) -> Unit
 ): T {
-    store().observeFinishedEvents(scope, block)
+    store().consumeFinishedEvents(scope, block)
     return this
 }
 

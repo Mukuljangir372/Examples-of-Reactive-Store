@@ -81,7 +81,7 @@ class HomeViewModel() : ViewModel() {
         GetUsersFeature(
             scope = viewModelScope,
             getUsersUsecase = GetUsersUsecase()
-        ).observeState {
+        ).consumeState {
             if (!it.loading && it.users.isNotEmpty()) {
                 store.dispatch(HomeEvent.InsertUsers(users = it.users))
             }
@@ -92,7 +92,7 @@ class HomeViewModel() : ViewModel() {
         DeleteUserFeature(
             scope = viewModelScope,
             deleteUsersUsecase = DeleteUserUsecase()
-        ).observeState {
+        ).consumeState {
             if (it.userDeleted) {
                 store.dispatch(HomeEvent.RemoveUser(id = it.deletedUser))
             }
