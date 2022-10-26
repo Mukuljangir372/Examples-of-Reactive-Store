@@ -24,16 +24,16 @@ class HomeInteractor(
 class HomeStore : Store<HomeState, HomeEvent>(
     initialState = HomeState.Idle,
     reducer = HomeReducer(),
-//    middleware = listOf(
-//        LoggerMiddleware(
-//            prefix = className(HomeState::class.java)
-//        )
-//    ),
-//    endConnector = listOf(
-//        LoggerEndConnector(
-//            prefix = className(HomeState::class.java)
-//        )
-//    )
+    middleware = listOf(
+        LoggerMiddleware(
+            prefix = className(HomeState::class.java)
+        )
+    ),
+    endConnector = listOf(
+        LoggerEndConnector(
+            prefix = className(HomeState::class.java)
+        )
+    )
 )
 
 interface HomeEvent : Event {
