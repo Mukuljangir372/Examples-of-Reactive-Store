@@ -7,12 +7,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 class DeleteUserFeature(
-    private val lifecycleOwner: LifecycleOwner? = null,
+    private val owner: LifecycleOwner? = null,
     private val scope: CoroutineScope,
     private val deleteUsersUsecase: DeleteUserUsecase,
 ) : Feature<DeleteUserFeature.FeatureState, DeleteUserFeature.FeatureEvent>(
     initialState = FeatureState.idle,
-    lifecycleOwner = lifecycleOwner,
+    lifecycleOwner = owner,
     coroutineScope = scope,
     storeKey = storeKey(DeleteUserFeature::class.java),
     reducer = FeatureReducer(),
@@ -74,12 +74,12 @@ class DeleteUserFeature(
 
 
 class GetUsersFeature(
-    private val lifecycleOwner: LifecycleOwner? = null,
+    private val owner: LifecycleOwner? = null,
     private val scope: CoroutineScope,
     private val getUsersUsecase: GetUsersUsecase,
 ) : Feature<GetUsersFeature.FeatureState, GetUsersFeature.FeatureEvent>(
     initialState = FeatureState.idle,
-    lifecycleOwner = lifecycleOwner,
+    lifecycleOwner = owner,
     coroutineScope = scope,
     storeKey = storeKey(GetUsersFeature::class.java),
     reducer = FeatureReducer(),
