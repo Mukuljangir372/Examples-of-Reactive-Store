@@ -3,7 +3,10 @@ package com.mukul.jan.arc.store.example
 import androidx.lifecycle.LifecycleOwner
 import com.mukul.jan.arc.store.*
 import com.mukul.jan.arc.store.feature.Feature
+import com.mukul.jan.arc.store.feature.LifecycleAwareFeature
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class DeleteUserFeature(
@@ -93,7 +96,7 @@ class GetUsersFeature(
             prefix = className(GetUsersFeature::class.java)
         )
     )
-) {
+), LifecycleAwareFeature {
     sealed class FeatureEvent : Event {
         data class InsertUsers(
             val users: List<User>
@@ -141,9 +144,24 @@ class GetUsersFeature(
     }
 
     operator fun invoke() = scope.launch {
-        dispatch(FeatureEvent.Loading(loading = true))
-        val users = getUsersUsecase.invoke()
-        dispatch(FeatureEvent.InsertUsers(users = users))
-        dispatch(FeatureEvent.OpenAlertDialog)
+//        dispatch(FeatureEvent.Loading(loading = true))
+//        val users = getUsersUsecase.invoke()
+//        dispatch(FeatureEvent.InsertUsers(users = users))
+//        dispatch(FeatureEvent.OpenAlertDialog)
+
+        for (i in 0..50) {
+            delay(1000)
+            val state = store().state().loading
+            dispatch(FeatureEvent.Loading(loading = !state))
+        }
+    }
+
+    override fun start() {
+        invoke()
+    }
+
+    override fun stop() {
+        scope.cancel()
+        //job?.cancel is recommended
     }
 }

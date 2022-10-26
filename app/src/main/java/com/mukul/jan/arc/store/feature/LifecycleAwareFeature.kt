@@ -59,7 +59,7 @@ internal class ViewBoundFeatureWrapper<T : LifecycleAwareFeature>() {
     }
 
     @Synchronized
-    fun set(feature: T, owner: LifecycleOwner, view: View) {
+    fun set(feature: T, owner: LifecycleOwner, view: View? = null) {
         if (this.feature != null) {
             clear()
         }
@@ -69,7 +69,7 @@ internal class ViewBoundFeatureWrapper<T : LifecycleAwareFeature>() {
         this.view = view
 
         viewBinding = ViewBinding(this).also {
-            view.addOnAttachStateChangeListener(it)
+            view?.addOnAttachStateChangeListener(it)
         }
 
         lifecycleBinding = LifecycleBinding(this).also {
