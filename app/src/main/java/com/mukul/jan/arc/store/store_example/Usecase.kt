@@ -1,4 +1,4 @@
-package com.mukul.jan.arc.store.example
+package com.mukul.jan.arc.store.store_example
 
 import kotlinx.coroutines.delay
 

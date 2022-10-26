@@ -1,16 +1,17 @@
 package com.mukul.jan.arc
 
-import com.mukul.jan.arc.store.example.GetUsersFeature
-import com.mukul.jan.arc.store.example.GetUsersUsecase
-import com.mukul.jan.arc.store.example.User
+import com.mukul.jan.arc.store.store_example.GetUsersFeature
+import com.mukul.jan.arc.store.store_example.GetUsersUsecase
+import com.mukul.jan.arc.store.store_example.User
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.test.*
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mock
-import org.mockito.kotlin.*
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 
 @OptIn(ExperimentalCoroutinesApi::class)
 

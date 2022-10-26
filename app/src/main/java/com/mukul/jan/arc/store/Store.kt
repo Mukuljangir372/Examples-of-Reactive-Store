@@ -3,7 +3,8 @@ package com.mukul.jan.arc.store
 import android.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.receiveAsFlow
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
@@ -167,7 +168,7 @@ class StoreProvider private constructor() {
 
     @Suppress("UNCHECKED_CAST")
     fun <T : Store<*, *>> get(key: String, default: T): T {
-        checkForKey(key)
+        checkForEmptyKey(key)
         val store = hashMap[key]
         if (store != null) {
             return store as T
@@ -177,14 +178,7 @@ class StoreProvider private constructor() {
         return default
     }
 
-    @Suppress("UNCHECKED_CAST")
-    fun <T : Store<*, *>> create(key: String, default: T): T {
-        checkForKey(key)
-        hashMap[key] = default
-        return default
-    }
-
-    private fun checkForKey(key: String) {
+    private fun checkForEmptyKey(key: String) {
         check(
             value = key.isNotEmpty(),
             lazyMessage = {
@@ -231,11 +225,6 @@ open class Feature<S : State, E : Event>(
 fun <T : Store<*, *>> getStore(key: String, default: T): T {
     val provider = StoreProvider.getInstance()
     return provider.get(key, default)
-}
-
-fun <T : Store<*, *>> createStore(key: String, default: T): T {
-    val provider = StoreProvider.getInstance()
-    return provider.create(key, default)
 }
 
 fun storeKey(target: Class<*>): String {

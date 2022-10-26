@@ -1,4 +1,4 @@
-package com.mukul.jan.arc.store.example
+package com.mukul.jan.arc.store.store_example
 
 import com.mukul.jan.arc.store.*
 import kotlinx.coroutines.CoroutineScope
