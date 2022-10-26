@@ -1,5 +1,8 @@
 package com.mukul.jan.arc.store
 
+import android.view.View
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.*
 import java.lang.ref.WeakReference
 import java.util.*
@@ -180,6 +183,7 @@ abstract class Store<S : State, E : Event>(
     ) {
         private val storeRef = WeakReference(store)
         private var active = true
+        internal var binding: Binding? = null
 
         @Synchronized
         fun pause() {
@@ -203,6 +207,11 @@ abstract class Store<S : State, E : Event>(
             active = false
             storeRef.get()?.removeSubscription(type, this)
             storeRef.clear()
+            binding?.unbind()
+        }
+
+        interface Binding {
+            fun unbind()
         }
     }
 
@@ -211,60 +220,43 @@ abstract class Store<S : State, E : Event>(
     }
 }
 
-/**
- * //--------------------------------------------------------------------//
- * Store Provider
- */
-class StoreProvider private constructor() {
-
-    companion object {
-        @Volatile
-        private var instance: StoreProvider? = null
-        fun getInstance(): StoreProvider {
-            if (instance != null) return instance!!
-
-            synchronized(this) {
-                if (instance == null) {
-                    instance = StoreProvider()
-                }
-            }
-            return instance!!
-        }
+class SubscriptionLifecycleBinding<S : State, E : Event>(
+    private val owner: LifecycleOwner,
+    private val subscription: Store.Subscription<S, E>,
+) : DefaultLifecycleObserver, Store.Subscription.Binding {
+    override fun onStart(owner: LifecycleOwner) {
+        subscription.resume()
     }
 
-    private val hashMap = ConcurrentHashMap<String, Store<*, *>>()
-
-    @Suppress("UNCHECKED_CAST")
-    fun <T : Store<*, *>> get(key: String, default: T): T {
-        checkForEmptyKey(key)
-        val store = hashMap[key]
-        if (store != null) {
-            return store as T
-        } else {
-            hashMap[key] = default
-        }
-        return default
+    override fun onStop(owner: LifecycleOwner) {
+        subscription.pause()
     }
 
-    private fun checkForEmptyKey(key: String) {
-        check(
-            value = key.isNotEmpty(),
-            lazyMessage = {
-                "Key can't be empty or null"
-            }
-        )
+    override fun onDestroy(owner: LifecycleOwner) {
+        subscription.unsubscribe()
+    }
+
+    override fun unbind() {
+        owner.lifecycle.removeObserver(this)
     }
 }
 
+class SubscriptionViewBinding<S : State, E : Event>(
+    private val view: View,
+    private val subscription: Store.Subscription<S, E>,
+) : View.OnAttachStateChangeListener, Store.Subscription.Binding {
+    override fun unbind() {
+        view.removeOnAttachStateChangeListener(this)
+    }
 
+    override fun onViewAttachedToWindow(p0: View) {
+        subscription.resume()
+    }
 
-
-
-
-
-
-
-
+    override fun onViewDetachedFromWindow(p0: View) {
+        subscription.unsubscribe()
+    }
+}
 
 
 

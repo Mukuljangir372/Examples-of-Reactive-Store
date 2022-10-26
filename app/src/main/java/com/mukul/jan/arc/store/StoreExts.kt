@@ -3,9 +3,11 @@ package com.mukul.jan.arc.store
 import androidx.activity.ComponentActivity
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.coroutineScope
 import com.mukul.jan.arc.store.feature.Feature
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
@@ -17,10 +19,6 @@ import kotlin.coroutines.cancellation.CancellationException
  * //--------------------------------------------------------------------//
  * EXTS
  */
-fun <T : Store<*, *>> getStore(key: String, default: T): T {
-    val provider = StoreProvider.getInstance()
-    return provider.get(key, default)
-}
 
 fun storeKey(target: Class<*>): String {
     return target.name + ".store"
@@ -30,33 +28,40 @@ fun className(target: Class<*>): String {
     return target.simpleName
 }
 
-/**
- * //--------------------------------------------------------------------//
- * EXTS FOR STORE
- */
-
 fun <S : State, E : Event> Store<S, E>.observe(
+    owner: LifecycleOwner? = null,
     type: Store.SubscriptionType,
     block: (state: S, event: E) -> Unit,
-): Store<S, E> {
+): Store.Subscription<S, E> {
     val store = this
-    store.observe(
+    val subscription = store.observe(
         type = type,
         observer = object : Store.Observer<S, E> {
             override fun onInvoke(state: S, event: E) {
                 block(state, event)
             }
+        })
+
+    owner?.let {
+        subscription.binding = SubscriptionLifecycleBinding(
+            owner = owner, subscription = subscription
+        ).apply {
+            it.lifecycle.addObserver(this)
         }
-    )
-    return store
+    }
+    return subscription
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 fun <S : State, E : Event> Store<S, E>.stateChannel(
+    owner: LifecycleOwner? = null,
     type: Store.SubscriptionType
 ): Channel<S> {
     val store = this
     val channel = Channel<S>(Channel.CONFLATED)
-    store.observe(type = type) { state, _ ->
+    val subscription = store.observe(
+        owner = owner, type = type
+    ) { state, _ ->
         runBlocking {
             try {
                 channel.send(state)
@@ -65,15 +70,23 @@ fun <S : State, E : Event> Store<S, E>.stateChannel(
             }
         }
     }
+    channel.invokeOnClose {
+        subscription.unsubscribe()
+    }
     return channel
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 fun <S : State, E : Event> Store<S, E>.eventChannel(
+    owner: LifecycleOwner? = null,
     type: Store.SubscriptionType
 ): Channel<E> {
     val store = this
     val channel = Channel<E>(Channel.CONFLATED)
-    store.observe(type = type) { _, event ->
+
+    val subscription = store.observe(
+        owner = owner, type = type
+    ) { _, event ->
         runBlocking {
             try {
                 channel.send(event)
@@ -82,15 +95,22 @@ fun <S : State, E : Event> Store<S, E>.eventChannel(
             }
         }
     }
+    channel.invokeOnClose {
+        subscription.unsubscribe()
+    }
     return channel
 }
 
 fun <S : State, E : Event> Store<S, E>.consumeState(
+    owner: LifecycleOwner? = null,
     scope: CoroutineScope,
     block: (S) -> Unit
 ): Store<S, E> {
     val store = this
-    val channel = store.stateChannel(type = Store.SubscriptionType.State)
+    val channel = store.stateChannel(
+        owner = owner,
+        type = Store.SubscriptionType.State
+    )
     scope.launch {
         channel.consumeEach {
             block(it)
@@ -100,11 +120,15 @@ fun <S : State, E : Event> Store<S, E>.consumeState(
 }
 
 fun <S : State, E : Event> Store<S, E>.consumeDispatchedEvents(
+    owner: LifecycleOwner? = null,
     scope: CoroutineScope,
     block: (E) -> Unit
 ): Store<S, E> {
     val store = this
-    val channel = store.eventChannel(type = Store.SubscriptionType.DispatchedEvents)
+    val channel = store.eventChannel(
+        owner = owner,
+        type = Store.SubscriptionType.DispatchedEvents
+    )
     scope.launch {
         channel.consumeEach {
             block(it)
@@ -114,11 +138,15 @@ fun <S : State, E : Event> Store<S, E>.consumeDispatchedEvents(
 }
 
 fun <S : State, E : Event> Store<S, E>.consumeFinishedEvents(
+    owner: LifecycleOwner? = null,
     scope: CoroutineScope,
     block: (E) -> Unit
 ): Store<S, E> {
     val store = this
-    val channel = store.eventChannel(type = Store.SubscriptionType.FinishedEvents)
+    val channel = store.eventChannel(
+        owner = owner,
+        type = Store.SubscriptionType.FinishedEvents
+    )
     scope.launch {
         channel.consumeEach {
             block(it)
@@ -133,54 +161,83 @@ fun <S : State, E : Event> Store<S, E>.consumeFinishedEvents(
  */
 
 fun <S : State, E : Event, T : Feature<S, E>> T.consumeState(
+    owner: LifecycleOwner? = lifecycleOwner(),
     scope: CoroutineScope = coroutineScope(),
     block: (S) -> Unit
 ): T {
-    store().consumeState(scope, block)
+    store().consumeState(
+        owner = owner,
+        scope = scope,
+        block = block
+    )
     return this
 }
 
 fun <S : State, E : Event, T : Feature<S, E>> T.consumeDispatchedEvents(
+    owner: LifecycleOwner? = lifecycleOwner(),
     scope: CoroutineScope = coroutineScope(),
     block: (E) -> Unit
 ): T {
-    store().consumeDispatchedEvents(scope, block)
+    store().consumeDispatchedEvents(
+        owner = owner,
+        scope = scope,
+        block = block
+    )
     return this
 }
 
 fun <S : State, E : Event, T : Feature<S, E>> T.consumeFinishedEvents(
+    owner: LifecycleOwner? = lifecycleOwner(),
     scope: CoroutineScope = coroutineScope(),
     block: (E) -> Unit
 ): T {
-    store().consumeFinishedEvents(scope, block)
+    store().consumeFinishedEvents(
+        owner = owner,
+        scope = scope,
+        block = block
+    )
     return this
 }
 
 /**
  * //--------------------------------------------------------------------//
- * EXTS
+ * EXTS FOR ANDROID SPECIFIC
  */
 
-fun <S : State, E : Event> Fragment.consumeState(store: Store<S, E>, block: (S) -> Unit) {
+fun <S : State, E : Event> Fragment.consumeState(
+    store: Store<S, E>,
+    block: (S) -> Unit
+) {
     val fragment = this
     val scope = lifecycle.coroutineScope
     if (fragment.view != null && fragment.activity != null) {
-        store.consumeState(scope = scope) { latestState ->
-            if (fragment.view != null && fragment.activity != null) {
-                block(latestState)
+        store.consumeState(
+            owner = viewLifecycleOwner,
+            scope = scope,
+            block = {
+                if (fragment.view != null && fragment.activity != null) {
+                    block(it)
+                }
             }
-        }
+        )
     }
 }
 
-fun <S : State, E : Event> ComponentActivity.consumeState(store: Store<S, E>, block: (S) -> Unit) {
+fun <S : State, E : Event> ComponentActivity.consumeState(
+    store: Store<S, E>,
+    block: (S) -> Unit
+) {
     val activity = this
     val scope = lifecycle.coroutineScope
     if (activity.lifecycle.currentState != Lifecycle.State.DESTROYED) {
-        store.consumeState(scope = scope) { latestState ->
-            if (activity.lifecycle.currentState != Lifecycle.State.DESTROYED) {
-                block(latestState)
+        store.consumeState(
+            owner = activity,
+            scope = scope,
+            block = {
+                if (activity.lifecycle.currentState != Lifecycle.State.DESTROYED) {
+                    block(it)
+                }
             }
-        }
+        )
     }
 }

@@ -20,6 +20,8 @@ import com.mukul.jan.arc.store.example.HomeInteractor
 import com.mukul.jan.arc.store.example.HomeStore
 import com.mukul.jan.arc.store.example.HomeViewModel
 import com.mukul.jan.arc.ui.theme.ArcTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -28,38 +30,22 @@ class MainActivity : ComponentActivity() {
         val interactor = HomeInteractor(viewModel)
 
         val store = HomeStore()
-        store.consumeState(lifecycleScope) {
-            Log.e("", "1 consumeState")
-        }
-        store.consumeState(lifecycleScope) {
-            Log.e("", "2 consumeState")
-        }
 
-        store.consumeState(lifecycleScope) {
-            Log.e("", "3 consumeState")
+        consumeState(store) {
+            Log.e("", "0 $it")
         }
-        store.consumeState(lifecycleScope) {
-            Log.e("", "4 consumeState")
+        consumeState(store) {
+            Log.e("", "01 $it")
         }
-
-        store.consumeState(lifecycleScope) {
-            Log.e("", "5 consumeState")
-        }
-        store.consumeState(lifecycleScope) {
-            Log.e("", "6 consumeState")
-        }
-
-        store.consumeState(lifecycleScope) {
-            Log.e("", "7 consumeState")
-        }
-        store.consumeState(lifecycleScope) {
-            Log.e("", "8 consumeState")
-        }
-
         setContent {
             SimpleSurface {
                 Button(onClick = {
-                    store.dispatch(HomeEvent.InsertUsers(users = listOf()))
+                    lifecycleScope.launch {
+                        for (i in 1..20) {
+                            delay(1000)
+                            store.dispatch(HomeEvent.ChangeName("$i"))
+                        }
+                    }
                 }) {
                     Text(text = "Fetch Users")
                 }

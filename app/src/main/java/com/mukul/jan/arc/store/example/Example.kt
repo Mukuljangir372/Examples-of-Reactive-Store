@@ -24,21 +24,22 @@ class HomeInteractor(
 class HomeStore : Store<HomeState, HomeEvent>(
     initialState = HomeState.Idle,
     reducer = HomeReducer(),
-    middleware = listOf(
-        LoggerMiddleware(
-            prefix = className(HomeState::class.java)
-        )
-    ),
-    endConnector = listOf(
-        LoggerEndConnector(
-            prefix = className(HomeState::class.java)
-        )
-    )
+//    middleware = listOf(
+//        LoggerMiddleware(
+//            prefix = className(HomeState::class.java)
+//        )
+//    ),
+//    endConnector = listOf(
+//        LoggerEndConnector(
+//            prefix = className(HomeState::class.java)
+//        )
+//    )
 )
 
 interface HomeEvent : Event {
     data class InsertUsers(val users: List<User>) : HomeEvent
     data class RemoveUser(val id: Int) : HomeEvent
+    data class ChangeName(val name: String) : HomeEvent
 }
 
 data class HomeState(
@@ -64,6 +65,16 @@ class HomeReducer : Reducer<HomeState, HomeEvent> {
                 val users = store.state().users.toMutableList()
                 users.removeIf { it.id == event.id }
                 store.state().copy(users = users)
+            }
+            is HomeEvent.ChangeName -> {
+                store.state().copy(
+                    users = listOf(
+                        User(
+                            id = 1,
+                            name = event.name
+                        )
+                    )
+                )
             }
             else -> store.state()
         }
